@@ -1,10 +1,4 @@
-var Buffer = require('safe-buffer').Buffer
-var createHash = require('create-hash')
-var pbkdf2 = require('pbkdf2').pbkdf2Sync
-var randomBytes = require('randombytes')
-
-// use unorm until String.prototype.normalize gets better browser support
-var unorm = require('unorm')
+var BufferLib = require('arc-bufferlib')
 
 var CHINESE_SIMPLIFIED_WORDLIST = require('./wordlists/chinese_simplified.json')
 var CHINESE_TRADITIONAL_WORDLIST = require('./wordlists/chinese_traditional.json')
@@ -19,6 +13,9 @@ var DEFAULT_WORDLIST = ENGLISH_WORDLIST
 var INVALID_MNEMONIC = 'Invalid mnemonic'
 var INVALID_ENTROPY = 'Invalid entropy'
 var INVALID_CHECKSUM = 'Invalid mnemonic checksum'
+
+var sha256 = null;
+var pbkdf2 = null;
 
 function lpad (str, padString, length) {
   while (str.length < length) str = padString + str
@@ -38,7 +35,7 @@ function bytesToBinary (bytes) {
 function deriveChecksumBits (entropyBuffer) {
   var ENT = entropyBuffer.length * 8
   var CS = ENT / 32
-  var hash = createHash('sha256').update(entropyBuffer).digest()
+  var hash = sha256.hash(entropyBuffer);
 
   return bytesToBinary([].slice.call(hash)).slice(0, CS)
 }
@@ -48,20 +45,20 @@ function salt (password) {
 }
 
 function mnemonicToSeed (mnemonic, password) {
-  var mnemonicBuffer = Buffer.from(unorm.nfkd(mnemonic), 'utf8')
-  var saltBuffer = Buffer.from(salt(unorm.nfkd(password)), 'utf8')
+  var mnemonicBuffer = BufferLib.stringToBuffer(mnemonic.normalize('NFKD'))
+  var saltBuffer = BufferLib.stringToBuffer(salt((password || "").normalize('NFKD')))
 
-  return pbkdf2(mnemonicBuffer, saltBuffer, 2048, 64, 'sha512')
+  return pbkdf2.pbkdf2Sha512(saltBuffer, mnemonicBuffer, 2048)
 }
 
 function mnemonicToSeedHex (mnemonic, password) {
-  return mnemonicToSeed(mnemonic, password).toString('hex')
+  return BufferLib.bufferToHex(mnemonicToSeed(mnemonic, password), false)
 }
 
 function mnemonicToEntropy (mnemonic, wordlist) {
   wordlist = wordlist || DEFAULT_WORDLIST
 
-  var words = unorm.nfkd(mnemonic).split(' ')
+  var words = mnemonic.normalize('NFKD').split(' ')
   if (words.length % 3 !== 0) throw new Error(INVALID_MNEMONIC)
 
   // convert word indices to 11 bit binary strings
@@ -83,15 +80,17 @@ function mnemonicToEntropy (mnemonic, wordlist) {
   if (entropyBytes.length > 32) throw new Error(INVALID_ENTROPY)
   if (entropyBytes.length % 4 !== 0) throw new Error(INVALID_ENTROPY)
 
-  var entropy = Buffer.from(entropyBytes)
+  var entropy = BufferLib.from(entropyBytes)
   var newChecksum = deriveChecksumBits(entropy)
   if (newChecksum !== checksumBits) throw new Error(INVALID_CHECKSUM)
 
-  return entropy.toString('hex')
+  return BufferLib.bufferToHex(entropy, false);
 }
 
 function entropyToMnemonic (entropy, wordlist) {
-  if (!Buffer.isBuffer(entropy)) entropy = Buffer.from(entropy, 'hex')
+  if (!(entropy instanceof Uint8Array)){
+    entropy = BufferLib.hexToBuffer(entropy, false)
+  }
   wordlist = wordlist || DEFAULT_WORDLIST
 
   // 128 <= ENT <= 256
@@ -115,7 +114,7 @@ function entropyToMnemonic (entropy, wordlist) {
 function generateMnemonic (strength, rng, wordlist) {
   strength = strength || 128
   if (strength % 32 !== 0) throw new TypeError(INVALID_ENTROPY)
-  rng = rng || randomBytes
+  rng = rng || BufferLib.allocRandom
 
   return entropyToMnemonic(rng(strength / 8), wordlist)
 }
@@ -130,6 +129,10 @@ function validateMnemonic (mnemonic, wordlist) {
   return true
 }
 
+async function initializeBip39(s, p){
+  sha256 = await s;
+  pbkdf2 = await p;
+}
 module.exports = {
   mnemonicToSeed: mnemonicToSeed,
   mnemonicToSeedHex: mnemonicToSeedHex,
@@ -149,5 +152,6 @@ module.exports = {
     japanese: JAPANESE_WORDLIST,
     korean: KOREAN_WORDLIST,
     spanish: SPANISH_WORDLIST
-  }
+  },
+  initializeBip39: initializeBip39
 }
