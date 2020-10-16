@@ -1,6 +1,6 @@
 {
   "name": "bip39-wasm",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Bitcoin BIP39: Mnemonic code for generating deterministic keys",
   "main": "index.js",
   "scripts": {},
@@ -22,10 +22,15 @@
     "url": "https://github.com/ARitz-Cracker/bip39-wasm"
   },
   "license": "ISC",
+  "peerDependencies": {
+    "buffer-lite": "^0.1.3"
+  },
   "dependencies": {
-    "arc-bufferlib": "^0.9.1-c",
-    "bitcoin-ts": "^1.3.0",
+    "@aritz-cracker/cryptowasm": "^1.18.0",
     "pbkdf2-wasm": "^0.8.1"
+  },
+  "browserRequirifier": {
+    "include": ["util"]
   },
   "devDependencies": {}
 }

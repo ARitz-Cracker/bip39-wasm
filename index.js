@@ -1,5 +1,7 @@
-var BufferLib = require('arc-bufferlib')
-
+if(typeof Buffer === "undefined"){
+  require("buffer-lite");
+}
+var allocRandom = require("./util/allocrandom");
 var CHINESE_SIMPLIFIED_WORDLIST = require('./wordlists/chinese_simplified.json')
 var CHINESE_TRADITIONAL_WORDLIST = require('./wordlists/chinese_traditional.json')
 var ENGLISH_WORDLIST = require('./wordlists/english.json')
@@ -45,14 +47,14 @@ function salt (password) {
 }
 
 function mnemonicToSeed (mnemonic, password) {
-  var mnemonicBuffer = BufferLib.stringToBuffer(mnemonic.normalize('NFKD'))
-  var saltBuffer = BufferLib.stringToBuffer(salt((password || "").normalize('NFKD')))
+  var mnemonicBuffer = Buffer.from(mnemonic.normalize('NFKD'))
+  var saltBuffer = Buffer.from(salt((password || "").normalize('NFKD')))
 
-  return pbkdf2.pbkdf2Sha512(saltBuffer, mnemonicBuffer, 2048)
+  return pbkdf2.pbkdf2Sha512(saltBuffer, mnemonicBuffer, 2048);
 }
 
 function mnemonicToSeedHex (mnemonic, password) {
-  return BufferLib.bufferToHex(mnemonicToSeed(mnemonic, password), false)
+  return mnemonicToSeed(mnemonic, password).toString("hex");
 }
 
 function mnemonicToEntropy (mnemonic, wordlist) {
@@ -80,16 +82,16 @@ function mnemonicToEntropy (mnemonic, wordlist) {
   if (entropyBytes.length > 32) throw new Error(INVALID_ENTROPY)
   if (entropyBytes.length % 4 !== 0) throw new Error(INVALID_ENTROPY)
 
-  var entropy = BufferLib.from(entropyBytes)
+  var entropy = Buffer.from(entropyBytes)
   var newChecksum = deriveChecksumBits(entropy)
   if (newChecksum !== checksumBits) throw new Error(INVALID_CHECKSUM)
 
-  return BufferLib.bufferToHex(entropy, false);
+  return entropy.toString("hex");
 }
 
 function entropyToMnemonic (entropy, wordlist) {
   if (!(entropy instanceof Uint8Array)){
-    entropy = BufferLib.hexToBuffer(entropy, false)
+    entropy = Buffer.from(entropy, "hex");
   }
   wordlist = wordlist || DEFAULT_WORDLIST
 
@@ -114,7 +116,7 @@ function entropyToMnemonic (entropy, wordlist) {
 function generateMnemonic (strength, rng, wordlist) {
   strength = strength || 128
   if (strength % 32 !== 0) throw new TypeError(INVALID_ENTROPY)
-  rng = rng || BufferLib.allocRandom
+  rng = rng || allocRandom
 
   return entropyToMnemonic(rng(strength / 8), wordlist)
 }
